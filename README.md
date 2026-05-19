@@ -27,8 +27,18 @@ npx skills add thekozugroup/Wattle/wattle
 ```bash
 python3 wattle/scripts/wattle.py list
 python3 wattle/scripts/wattle.py advise --style defensive --context "HR escalation email"
+python3 wattle/scripts/wattle.py critique --style persuasion --level executive --text "Please buy this."
 python3 wattle/scripts/wattle.py loop --style defensive --level hr_lawyer_lite --input draft.txt
 python3 wattle/scripts/wattle.py grade
+python3 wattle/scripts/wattle.py grade --full --waves 15 --json
 ```
 
 Skill triggers include `$wattle`, `/wattle defensive hr_lawyer_lite`, `defensive lite`, `legalese`, `attack_2`, and client persuasion requests.
+
+## Verify
+
+```bash
+python3 -m unittest discover tests
+python3 /Users/michaelwong/.codex/skills/.system/skill-creator/scripts/quick_validate.py ./wattle
+python3 wattle/scripts/wattle.py grade --full --waves 15 --json
+```

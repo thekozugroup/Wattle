@@ -58,7 +58,7 @@ FAMILIES: dict[str, Family] = {
             "legalese": Level(
                 "legalese",
                 "Formal rights-reserved wording for high-risk written records.",
-                ("without admission", "reserve all rights", "written response"),
+                ("without admission", "all rights reserved", "written response"),
                 (
                     "Use narrow factual statements.",
                     "Avoid admissions or speculation.",
@@ -130,7 +130,11 @@ SAFETY_PATTERNS: dict[str, tuple[str, ...]] = {
     "deception": ("lie", "fake", "fabricate", "misrepresent", "impersonate"),
     "threat": ("threaten", "ruin their reputation", "destroy them", "blackmail", "extort"),
     "harassment": ("harass", "stalk", "dox", "humiliate"),
-    "legal_advice": ("guaranteed legal", "cannot lose in court"),
+    "coercion": ("or i will report you", "pay or", "report you to regulators", "report you to the press"),
+    "false_scarcity": ("expires tonight", "last chance ever"),
+    "fabricated_evidence": ("fabricate evidence", "fake citation", "fake document"),
+    "admission": ("i admit", "i breached", "i owe damages", "my fault"),
+    "legal_advice": ("guaranteed legal", "cannot lose in court", "you should sue", "valid claim", "legally entitled", "complies with law"),
 }
 
 
@@ -142,6 +146,54 @@ GRADE_WEIGHTS = {
     "safety": 20,
     "tone_adherence": 10,
 }
+
+GRADE_FIXTURES = (
+    {
+        "style": "defensive",
+        "level": "lite",
+        "text": "You ignored the request and this needs to stop.",
+    },
+    {
+        "style": "defensive",
+        "level": "hr_lawyer_lite",
+        "text": "You failed to respond about the schedule change. Fix it today.",
+    },
+    {
+        "style": "defensive",
+        "level": "legalese",
+        "text": "The vendor missed the May 12 milestone and owes a written answer.",
+    },
+    {
+        "style": "offense",
+        "level": "attack_1",
+        "text": "We need an answer on the revised invoice.",
+    },
+    {
+        "style": "offense",
+        "level": "attack_2",
+        "text": "The pricing issue is blocking approval.",
+    },
+    {
+        "style": "offense",
+        "level": "attack_3",
+        "text": "This unresolved renewal issue needs senior attention.",
+    },
+    {
+        "style": "persuasion",
+        "level": "consultative",
+        "text": "The client is unsure whether the rollout is worth doing.",
+    },
+    {
+        "style": "persuasion",
+        "level": "executive",
+        "text": "The buyer needs a board-ready reason to move now.",
+    },
+    {
+        "style": "persuasion",
+        "level": "urgency",
+        "text": "The decision has been delayed for two weeks.",
+    },
+)
 
 
 def normalize_name(value: str) -> str:
@@ -247,7 +299,7 @@ def safety_flags(text: str) -> list[str]:
     lower = text.lower()
     flags = []
     for name, patterns in SAFETY_PATTERNS.items():
-        if any(pattern in lower for pattern in patterns):
+        if any(re.search(rf"(?<!\w){re.escape(pattern)}(?!\w)", lower) for pattern in patterns):
             flags.append(name)
     return flags
 
@@ -347,33 +399,133 @@ def qa(style: str, level_name: str, text: str) -> dict:
     }
 
 
+def critique(style: str, level_name: str, text: str) -> dict:
+    result = qa(style, level_name, text)
+    findings = []
+    if result["flags"]:
+        findings.append("Resolve safety flags before rewriting.")
+    if result["missing_markers"]:
+        findings.append("Add missing tone markers for the selected level.")
+    if len(text.split()) > 260:
+        findings.append("Shorten the draft before final use.")
+    if not findings:
+        findings.append("No deterministic gaps found.")
+    result["critique"] = findings
+    result["next_action"] = "finalize" if result["ok"] else "rewrite"
+    return result
+
+
 def loop(style: str, level: str, text: str, max_iter: int) -> dict:
     current = text
     history = []
+    stop_reason = "max_iter"
+    initial = qa(style, level, current)
+    if initial["flags"]:
+        return {
+            "text": current,
+            "score": initial["score"],
+            "ok": False,
+            "flags": initial["flags"],
+            "history": [{"iteration": 0, "score": initial["score"], "flags": initial["flags"]}],
+            "stop_reason": "safety_flags",
+        }
     for index in range(max_iter):
         current = rewrite_text(style, level, current)
         result = qa(style, level, current)
         history.append({"iteration": index + 1, "score": result["score"], "flags": result["flags"]})
+        if result["flags"]:
+            stop_reason = "safety_flags"
+            break
         if result["ok"]:
+            stop_reason = "score_threshold"
             break
     final = qa(style, level, current)
-    return {"text": current, "score": final["score"], "ok": final["ok"], "history": history}
+    return {
+        "text": current,
+        "score": final["score"],
+        "ok": final["ok"],
+        "flags": final["flags"],
+        "history": history,
+        "stop_reason": stop_reason,
+    }
 
 
-def grade() -> dict:
+def _score_checks(checks: dict[str, bool]) -> int:
+    return 100 if all(checks.values()) else 0
+
+
+def run_grade_wave(wave: int) -> dict:
     root = Path(__file__).resolve().parent.parent
-    checks = {
-        "skill_file": (root / "SKILL.md").exists(),
-        "openai_yaml": (root / "agents" / "openai.yaml").exists(),
-        "script_file": (root / "scripts" / "wattle.py").exists(),
+    fixture_results = [loop(item["style"], item["level"], item["text"], 4) for item in GRADE_FIXTURES]
+    fixture_qas = [
+        qa(item["style"], item["level"], result["text"])
+        for item, result in zip(GRADE_FIXTURES, fixture_results)
+    ]
+    checks_by_category = {
+        "performance": {
+            "all_fixture_scores_pass": all(result["score"] >= 90 for result in fixture_results),
+            "outputs_nonempty": all(bool(result["text"].strip()) for result in fixture_results),
+        },
+        "efficiency": {
+            "bounded_iterations": all(len(result["history"]) <= 4 for result in fixture_results),
+            "bounded_output_length": all(len(result["text"].split()) <= 120 for result in fixture_results),
+        },
+        "methodology": {
+            "history_recorded": all(result["history"] for result in fixture_results),
+            "stop_reason_recorded": all(result["stop_reason"] for result in fixture_results),
+            "rubric_reference_exists": (root / "references" / "rubric.md").exists(),
+        },
+        "ease_of_use": {
+            "skill_file": (root / "SKILL.md").exists(),
+            "openai_yaml": (root / "agents" / "openai.yaml").exists(),
+            "script_file": (root / "scripts" / "wattle.py").exists(),
+            "readme_exists": (root.parent / "README.md").exists(),
+        },
+        "safety": {
+            "deception_threat_flagged": set(safety_flags("lie and threaten to ruin their reputation")) == {"deception", "threat"},
+            "legal_overclaim_flagged": "legal_advice" in safety_flags("guaranteed legal result"),
+            "safe_fixture_outputs": all(not item["flags"] for item in fixture_qas),
+        },
+        "tone_adherence": {
+            "markers_present": all(not item["missing_markers"] for item in fixture_qas),
+            "all_levels_covered": len({(item["style"], item["level"]) for item in GRADE_FIXTURES}) == 9,
+        },
+    }
+    categories = {name: _score_checks(checks) for name, checks in checks_by_category.items()}
+    critique_lines = [
+        f"{name}: {'pass' if score == 100 else 'fail'}"
+        for name, score in categories.items()
+    ]
+    return {
+        "wave": wave,
+        "overall": 100 if all(score == 100 for score in categories.values()) else 0,
+        "categories": categories,
+        "checks": checks_by_category,
+        "critique": critique_lines,
+    }
+
+
+def grade(full: bool = False, waves: int = 1) -> dict:
+    base_checks = {
         "weights_sum": sum(GRADE_WEIGHTS.values()) == 100,
         "core_families": {"defensive", "offense", "persuasion"}.issubset(FAMILIES),
-        "safety_flags": set(safety_flags("lie and threaten to ruin their reputation")) == {"deception", "threat"},
-        "loop_score": loop("defensive", "hr_lawyer_lite", "Fix it today.", 3)["score"] >= 90,
     }
-    all_ok = all(checks.values())
-    categories = {name: 100 if all_ok else 0 for name in GRADE_WEIGHTS}
-    return {"overall": 100 if all_ok else 0, "categories": categories, "checks": checks}
+    wave_reports = [run_grade_wave(index + 1) for index in range(max(1, waves if full else 1))]
+    categories = {
+        name: 100 if base_checks["weights_sum"] and all(wave["categories"][name] == 100 for wave in wave_reports) else 0
+        for name in GRADE_WEIGHTS
+    }
+    overall = 100 if base_checks["core_families"] and all(score == 100 for score in categories.values()) else 0
+    payload = {
+        "overall": overall,
+        "categories": categories,
+        "checks": base_checks,
+    }
+    if full:
+        payload["waves"] = wave_reports
+    else:
+        payload["checks"].update(wave_reports[0]["checks"])
+    return payload
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -388,7 +540,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_advise.add_argument("--context", default="")
     p_advise.add_argument("--json", action="store_true")
 
-    for name in ("rewrite", "qa", "loop"):
+    for name in ("rewrite", "qa", "critique", "loop"):
         p = sub.add_parser(name)
         p.add_argument("--style", required=True)
         p.add_argument("--level", required=True)
@@ -400,6 +552,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_grade = sub.add_parser("grade", help="Run deterministic graders")
     p_grade.add_argument("--json", action="store_true")
+    p_grade.add_argument("--full", action="store_true", help="Run full multi-wave grader report")
+    p_grade.add_argument("--waves", type=int, default=1, help="Number of grader waves")
     return parser
 
 
@@ -420,12 +574,16 @@ def main(argv: Iterable[str] | None = None) -> int:
             result = qa(args.style, args.level, read_text(args))
             emit(result, args.json)
             return 0 if result["ok"] else 2
+        if args.command == "critique":
+            result = critique(args.style, args.level, read_text(args))
+            emit(result, args.json)
+            return 0 if result["ok"] else 2
         if args.command == "loop":
             result = loop(args.style, args.level, read_text(args), args.max_iter)
             emit(result, args.json)
             return 0 if result["ok"] else 2
         if args.command == "grade":
-            result = grade()
+            result = grade(args.full, args.waves)
             emit(result, args.json)
             return 0 if result["overall"] == 100 else 2
     except ValueError as exc:
@@ -436,4 +594,3 @@ def main(argv: Iterable[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

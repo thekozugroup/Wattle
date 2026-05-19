@@ -21,7 +21,9 @@ Wattle is a tactical writing toolbox for agents. It helps select a style, rewrit
    - `python3 scripts/wattle.py qa --style defensive --level hr_lawyer_lite --text "<draft>"`
 5. If the score is below 90, run another small rewrite pass or use:
    - `python3 scripts/wattle.py loop --style defensive --level hr_lawyer_lite --input draft.txt`
-6. For scoring details, read `references/rubric.md` only when grading or auditing Wattle itself.
+6. For critique before rewrite, use:
+   - `python3 scripts/wattle.py critique --style persuasion --level executive --text "<draft>"`
+7. For scoring details, read `references/rubric.md` only when grading or auditing Wattle itself.
 
 ## Slash Aliases
 
@@ -95,6 +97,7 @@ python3 scripts/wattle.py list
 python3 scripts/wattle.py advise --style defensive --context "manager retaliation email"
 python3 scripts/wattle.py rewrite --style persuasion --level executive --text "..."
 python3 scripts/wattle.py qa --style offense --level attack_2 --text "..."
+python3 scripts/wattle.py critique --style persuasion --level executive --text "..."
 python3 scripts/wattle.py loop --style defensive --level hr_lawyer_lite --input draft.txt --max-iter 4
-python3 scripts/wattle.py grade
+python3 scripts/wattle.py grade --full --waves 15
 ```

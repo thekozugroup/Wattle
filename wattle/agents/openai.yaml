@@ -3,5 +3,4 @@ interface:
   short_description: "Tactical writing styles and QAQC"
   default_prompt: "Use $wattle to rewrite this corporate email in defensive HR/lawyer-lite tone."
 policy:
-  allow_implicit_invocation: true
-
+  allow_implicit_invocation: false

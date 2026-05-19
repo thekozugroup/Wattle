@@ -11,11 +11,12 @@ Use this rubric for grader and reviewer passes.
 | Safety | 20 | Blocks threats, deception, harassment, coercion, and legal-advice overclaiming. |
 | Tone adherence | 10 | Requested family and level are visible in the result. |
 
-Deterministic wave 1 checks:
+Deterministic full-grade checks:
 - required files exist;
 - category weights sum to 100;
 - core families and levels exist;
 - safety fixtures are flagged;
-- recursive loop reaches score 90 or higher on a defensive fixture;
+- recursive loop reaches score 90 or higher on every style-level fixture;
+- 15 requested grader waves return independent category scores and critique lines;
+- unsafe admission, coercion, deception, threat, and legal-overclaim fixtures fail;
 - tests pass with `python3 -m unittest discover tests`.
-
