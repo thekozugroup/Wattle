@@ -172,6 +172,37 @@ class TestWattleCli(unittest.TestCase):
         self.assertIn("admission", payload["flags"])
         self.assertEqual(payload["stop_reason"], "safety_flags")
 
+    def test_help_exposes_advertised_commands(self):
+        result = run_wattle("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("critique", result.stdout)
+        self.assertIn("grade", result.stdout)
+
+    def test_invalid_style_fails_cleanly(self):
+        result = run_wattle("advise", "--style", "unknown", "--context", "test")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unknown style", result.stderr)
+
+    def test_rewrite_preserves_dates_money_urls_and_quotes(self):
+        draft = 'Acme owes $12,500 by May 19. See https://example.com. They said "approved".'
+        result = run_wattle(
+            "loop",
+            "--style",
+            "defensive",
+            "--level",
+            "hr_lawyer_lite",
+            "--text",
+            draft,
+            "--json",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        text = payload["text"]
+        self.assertIn("$12,500", text)
+        self.assertIn("May 19", text)
+        self.assertIn("https://example.com", text)
+        self.assertIn('"approved"', text)
+
 
 if __name__ == "__main__":
     unittest.main()
