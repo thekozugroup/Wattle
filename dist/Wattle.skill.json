@@ -1,0 +1,8 @@
+{
+  "bundle": "dist/Wattle.skill",
+  "file_count": 4,
+  "install_hint": "bash dist/Wattle.skill --install",
+  "payload_root": "wattle",
+  "payload_sha256": "ba5bb2733f684bea6b6172c6d3dd828a39b6c2e84967d15e4b34836e0036e0a9",
+  "sha256": "8a94b52f01be6cda7e24e59e48c96787cfa14556ff88d2f232522b1623ce56d2"
+}

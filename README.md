@@ -22,6 +22,24 @@ From GitHub after this repo is pushed:
 npx skills add thekozugroup/Wattle/wattle
 ```
 
+Single-file release bundle:
+
+```bash
+bash dist/Wattle.skill --install
+```
+
+Build the release bundle:
+
+```bash
+python3 scripts/build_skill_bundle.py
+```
+
+## Copy-Paste Agent Install Prompt
+
+```text
+Install Wattle for Codex from the release bundle. Use the local file `dist/Wattle.skill` if present, otherwise download `Wattle.skill` from the latest GitHub release for `thekozugroup/Wattle`. Run `bash dist/Wattle.skill --install` or `bash Wattle.skill --install`. Then verify with `npx skills ls -g -a codex --json` and confirm that `wattle` is installed. If the installer cannot use npx, run `bash Wattle.skill --extract /tmp/wattle-install` and install `/tmp/wattle-install/wattle` with the local skill installer.
+```
+
 ## Use
 
 ```bash
@@ -41,4 +59,6 @@ Skill triggers include `$wattle`, `/wattle defensive hr_lawyer_lite`, `defensive
 python3 -m unittest discover tests
 python3 /Users/michaelwong/.codex/skills/.system/skill-creator/scripts/quick_validate.py ./wattle
 python3 wattle/scripts/wattle.py grade --full --waves 15 --json
+python3 scripts/build_skill_bundle.py
+bash dist/Wattle.skill --extract /tmp/wattle-release-check
 ```
